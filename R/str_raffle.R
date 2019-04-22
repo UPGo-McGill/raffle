@@ -4,42 +4,49 @@
 #' administrative units (e.g. census tracts) using a combination of the reported
 #' latitude/longitude of the listings and population or housing-unit data.
 
-### 1. SETUP for raffle input ---------------------------
 
-## 1.1. Load libraries ---------------------------
+## 1. Load libraries -----------------------------------------------------------
 
 lapply(c("sf","dplyr","spatstat","polyCub"), 
        library, character.only = TRUE)
 
-## 1.2. Setup function, returns points and polys ---------------------------
 
-raffle_setup <- function(points, polys) {
+## 2. Point setup function, returns points -------------------------------------
+
+raffle_setup_points <- function(points, point_ID) {
+  point_ID <- enquo(point_ID)
   
-  points <-
-    points %>%
-    filter(Property_ID > 0) %>%
-    arrange(Property_ID) %>%
+  points %>%
+    filter(!! point_ID > 0) %>%
+    arrange(!! point_ID) %>%
     mutate(
       point_x = st_coordinates(.)[,1], # Get point coordinates for future use
       point_y = st_coordinates(.)[,2]
     )
+}
+
+
+## 3. Polygon setup function, returns polys ------------------------------------
+
+raffle_setup_polys <- function(polys, poly_ID, units){
+  poly_ID <- enquo(poly_ID)
+  units <- enquo(units)
   
-  polys <-
-    polys %>%
-    filter(units > 0) %>%
+  polys %>%
+    filter(!! units > 0) %>%
     st_set_agr("constant") %>% # Prevent warnings from the st operations
     mutate(
-      ID = as.character(ID), # Make sure polygon IDs not factors
+      !! poly_ID := as.character(!! poly_ID), # Make sure poly_ID is not factor
       poly_area = st_area(.) # Calculate polygon areas
     ) %>% 
     st_set_agr("constant")
-  
-  return(list(points, polys))
 }
 
-### 2. RAFFLE FUNCTION, returns points  ---------------------------
 
-raffle_function <- function(points, polys, distance = distance, diagnostic = diagnostic)  {
+## 4. RAFFLE FUNCTION, returns points  -----------------------------------------
+
+raffle_function <- function(
+  points, polys, distance = distance, diagnostic = diagnostic)  {
   
   # Generate buffers, intersect with polygons, estimate units, group by Property_ID
   intersects <-
@@ -104,16 +111,17 @@ raffle_function <- function(points, polys, distance = distance, diagnostic = dia
   return(points)
 }
 
-### 3. MAIN compiler to run the whole process ---------------------------
+## 4. MAIN compiler to run the whole process -----------------------------------
 
-raffle <- function(points, polys, distance = 200, diagnostic = FALSE, cores = 1){
+raffle <- function(
+  points, polys, point_ID, poly_ID, units,
+  distance = 200, diagnostic = FALSE, cores = 1) {
   
   lapply(c("sf","dplyr","spatstat","polyCub"), 
          library, character.only = TRUE)
   
-  setup <- raffle_setup(points, polys)
-  points <- setup[[1]]
-  polys <- setup[[2]]
+  points <- raffle_setup_points(points, point_ID)
+  polys <- raffle_setup_polys(polys, poly_ID, units)
   
   # Run single-core version by default, unless multiple cores are specified
   if (cores >= 2){
