@@ -1,34 +1,33 @@
 #' Raffle to assign STR listings to administrative units for spatial analysis
 #' 
 #' This function takes STR listings and assigns them probabilistically to
-#' administrative units (e.g. census tracts) using a combination of the reported
-#' latitude/longitude of the listings and population or housing-unit data.
+#' one of the administrative units (e.g. census tracts) in which, given their
+#' reported location, they could be located in. The function uses a combination
+#' of a reversal of Airbnb's method for obfuscating listing locations and a
+#' weighting of possible locations by population or housing-unit data.
 
 
 ## 1. Load libraries -----------------------------------------------------------
 
-lapply(c("sf","dplyr","spatstat","polyCub"), 
-       library, character.only = TRUE)
+lapply(c("sf","dplyr","spatstat","polyCub"), library, character.only = TRUE)
 
 
 ## 2. Point setup function, returns points -------------------------------------
 
 raffle_setup_points <- function(points, point_ID) {
+  
   point_ID <- enquo(point_ID)
   
   points %>%
     filter(!! point_ID > 0) %>%
-    arrange(!! point_ID) %>%
-    mutate(
-      point_x = st_coordinates(.)[,1], # Get point coordinates for future use
-      point_y = st_coordinates(.)[,2]
-    )
+    arrange(!! point_ID)
 }
 
 
 ## 3. Polygon setup function, returns polys ------------------------------------
 
 raffle_setup_polys <- function(polys, poly_ID, units){
+  
   poly_ID <- enquo(poly_ID)
   units <- enquo(units)
   
@@ -43,27 +42,35 @@ raffle_setup_polys <- function(polys, poly_ID, units){
 }
 
 
-## 4. RAFFLE FUNCTION, returns points  -----------------------------------------
+## 4. Intersect point buffers with polygons, returns intersects ----------------
 
-raffle_function <- function(
-  points, polys, distance = distance, diagnostic = diagnostic)  {
+raffle_intersect <- function(points, polys, units, distance) {
   
-  # Generate buffers, intersect with polygons, estimate units, group by Property_ID
+  units <- enquo(units)
+  
+  # Get point coordinates for future use
+  points <- 
+    points %>%
+    mutate(
+      point_x = st_coordinates(.)[,1], 
+      point_y = st_coordinates(.)[,2]
+      )
+  
+  # Generate buffers, intersect with polygons, estimate units
   intersects <-
     points %>%
     st_set_agr("constant") %>%
     st_buffer(dist = distance, nQuadSegs = 10) %>% 
     st_set_agr("constant") %>%
     st_intersection(polys) %>%
-    mutate(int_units = as.numeric(units*st_area(.) / poly_area)) %>% 
-    select(-units,-poly_area) %>% 
-    st_set_agr("constant") %>%
-    arrange(Property_ID, ID)
+    mutate(int_units = as.numeric(!! units * st_area(.) / poly_area)) %>% 
+    select(-(!! units), -poly_area) %>% 
+    st_set_agr("constant")
   
   # Transform intersects relative to point coordinates
   st_geometry(intersects) <-   
-    mapply(function(geom,x,y){
-      geom <- geom - c(x,y)
+    mapply(function(geom, x, y) {
+      geom <- geom - c(x, y)
       geom
     },
     st_geometry(intersects),
@@ -72,7 +79,15 @@ raffle_function <- function(
     SIMPLIFY = FALSE) %>%
     st_sfc()
   
-  # Integrate the PDF over intersect polygons
+  intersects %>% 
+    select(-point_x, -point_y)
+}
+ 
+
+## 5. Integrate the PDF over intersect polygons, returns intersects ------------
+
+raffle_integrate <- function(intersects, units) {
+  
   intersects$probability <-
     mapply(function(geom,units){
       polyCub.midpoint(as(geom,"Spatial"), function(x) {
@@ -83,8 +98,13 @@ raffle_function <- function(
     },
     intersects$geometry,
     intersects$int_units)
+}
   
-  # Determine winners, add candidates field if diagnostic == TRUE
+
+## 6. Determine winners, returns points ----------------------------------------
+
+raffle_choose_winner <- function() {
+  
   results <-
     intersects %>%
     st_drop_geometry() %>%
@@ -105,8 +125,7 @@ raffle_function <- function(
   
   points <-
     results %>% 
-    left_join(points, ., by = "Property_ID") %>% 
-    select(-point_x,-point_y)
+    left_join(points, ., by = "Property_ID")
   
   return(points)
 }
