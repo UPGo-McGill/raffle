@@ -1,5 +1,6 @@
 ## Testing file
 
+
 # Import data
 
 NOLA <-
@@ -15,4 +16,18 @@ NOLA_polys <-
   st_as_sf()
 
 
-raffle_setup_points(NOLA, Property_ID)
+# Testing component functions
+
+points <- raffle_setup_points(NOLA, Property_ID)
+polys <- raffle_setup_polys(NOLA_polys, GEOID, Housing)
+intersects <- raffle_intersect(points, polys, Housing, 200)
+
+
+# Benchmarking component functions
+
+library(bench)
+library(profvis)
+
+mark(raffle_setup_points(NOLA, Property_ID))
+mark(raffle_setup_polys(NOLA_polys, GEOID, Housing))
+mark(raffle_intersect(points, polys, Housing, 200))
