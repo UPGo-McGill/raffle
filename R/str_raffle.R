@@ -56,13 +56,16 @@ raffle_intersect <- function(points, polys, units, distance) {
       point_y = st_coordinates(.)[,2]
       )
   
-  # Generate buffers, intersect with polygons, estimate units
+  # Generate buffers and intersect with polygons
   intersects <-
     points %>%
-    st_set_agr("constant") %>%
     st_buffer(dist = distance, nQuadSegs = 10) %>% 
     st_set_agr("constant") %>%
-    st_intersection(polys) %>%
+    st_intersection(polys)
+  
+  # Estimate int_units
+  intersects <-
+    intersects %>%
     mutate(int_units = as.numeric(!! units * st_area(.) / poly_area)) %>% 
     select(-(!! units), -poly_area) %>% 
     st_set_agr("constant")
