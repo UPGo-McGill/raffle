@@ -23,22 +23,41 @@ NOLA_polys <-
 
 # Testing component functions
 
-points <- raffle_setup_points(NOLA, Property_ID)
-polys <- raffle_setup_polys(NOLA_polys, GEOID, Housing)
-intersects <- raffle_intersect(points, polys, Housing, 200)
-intersects <- raffle_integrate(intersects)
-points <- raffle_choose_winner(
-  points, intersects, Property_ID, GEOID, diagnostic = TRUE)
-
 str_raffle(NOLA, NOLA_polys, Property_ID, GEOID, Housing, cores = 5)
 
 
-# Benchmarking component functions
+# Benchmarking
 
 library(bench)
 library(profvis)
 
-mark(raffle_setup_points(NOLA, Property_ID))
-mark(raffle_setup_polys(NOLA_polys, GEOID, Housing))
-mark(raffle_intersect(points, polys, Housing, 200))
-profvis(raffle_intersect(points, polys, Housing, 200))
+mark(
+  "1" = {str_raffle(NOLA, NOLA_polys, Property_ID, GEOID, Housing, cores = 1)},
+  "2" = {str_raffle(NOLA, NOLA_polys, Property_ID, GEOID, Housing, cores = 2)},
+  "3" = {str_raffle(NOLA, NOLA_polys, Property_ID, GEOID, Housing, cores = 3)},
+  "4" = {str_raffle(NOLA, NOLA_polys, Property_ID, GEOID, Housing, cores = 4)},
+  "5" = {str_raffle(NOLA, NOLA_polys, Property_ID, GEOID, Housing, cores = 5)},
+  "6" = {str_raffle(NOLA, NOLA_polys, Property_ID, GEOID, Housing, cores = 6)},
+  "7" = {str_raffle(NOLA, NOLA_polys, Property_ID, GEOID, Housing, cores = 7)},
+  check = FALSE)
+
+mark(
+  "1" = {str_raffle(NOLA, NOLA_polys, Property_ID, GEOID, Housing, cores = 1)},
+  "7" = {str_raffle(NOLA, NOLA_polys, Property_ID, GEOID, Housing, cores = 7)},
+  check = FALSE)
+
+t0 <- Sys.time()
+str_raffle(NOLA, NOLA_polys, Property_ID, GEOID, Housing, cores = 1)
+t1 <- Sys.time()
+str_raffle(NOLA, NOLA_polys, Property_ID, GEOID, Housing, cores = 3)
+t2 <- Sys.time()
+str_raffle(NOLA, NOLA_polys, Property_ID, GEOID, Housing, cores = 5)
+t3 <- Sys.time()
+str_raffle(NOLA, NOLA_polys, Property_ID, GEOID, Housing, cores = 7)
+t4 <- Sys.time()
+
+t1 - t0
+t2 - t1
+t3 - t2
+t4 - t3
+

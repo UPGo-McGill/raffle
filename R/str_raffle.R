@@ -10,7 +10,8 @@
 
 ## 1. Load libraries -----------------------------------------------------------
 
-lapply(c("sf","dplyr","spatstat","polyCub"), library, character.only = TRUE)
+lapply(c("sf","dplyr","spatstat","polyCub", "purrr"),
+       library, character.only = TRUE)
 
 
 ## 2. Point setup function, returns points -------------------------------------
