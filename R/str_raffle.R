@@ -86,10 +86,18 @@ raffle_intersect <- function(points, polys, units, distance) {
   intersects
 }
  
+## 5. PDF helper function, returns vector of probabilities ---------------------
 
-## 5. Integrate the PDF over intersect polygons, returns intersects ------------
+raffle_pdf <- function(x) {
+  dnorm(sqrt(x[,1]^2 + x[,2]^2), mean = 100, sd = 50, log = FALSE) *
+    (1 / (2 * pi))
+}
+
+## 6. Integrate the PDF over intersect polygons, returns intersects ------------
 
 raffle_integrate <- function(intersects, units) {
+  
+  units <- enquo(units)
   
   intersects$probability <-
     mapply(function(geom, units){
@@ -101,6 +109,8 @@ raffle_integrate <- function(intersects, units) {
     },
     intersects$geometry,
     intersects$int_units)
+  
+  intersects
 }
   
 
