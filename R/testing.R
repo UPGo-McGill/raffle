@@ -30,6 +30,8 @@ intersects <- raffle_integrate(intersects)
 points <- raffle_choose_winner(
   points, intersects, Property_ID, GEOID, diagnostic = TRUE)
 
+str_raffle(NOLA, NOLA_polys, Property_ID, GEOID, Housing, cores = 5)
+
 
 # Benchmarking component functions
 
@@ -40,9 +42,3 @@ mark(raffle_setup_points(NOLA, Property_ID))
 mark(raffle_setup_polys(NOLA_polys, GEOID, Housing))
 mark(raffle_intersect(points, polys, Housing, 200))
 profvis(raffle_intersect(points, polys, Housing, 200))
-mark({
-  intersects %>%
-    mutate(int_units = as.numeric(Housing * st_area(.) / poly_area)) %>% 
-    select(-Housing, -poly_area) %>% 
-    st_set_agr("constant")
-})

@@ -17,8 +17,6 @@ lapply(c("sf","dplyr","spatstat","polyCub"), library, character.only = TRUE)
 
 raffle_setup_points <- function(points, point_ID) {
   
-  point_ID <- enquo(point_ID)
-  
   points <- 
     points %>%
     filter(!! point_ID > 0) %>%
@@ -31,10 +29,7 @@ raffle_setup_points <- function(points, point_ID) {
 ## 3. Polygon setup function, returns polys ------------------------------------
 
 raffle_setup_polys <- function(polys, poly_ID, units){
-  
-  poly_ID <- enquo(poly_ID)
-  units <- enquo(units)
-  
+
   polys <- 
     polys %>%
     filter(!! units > 0) %>%
@@ -86,7 +81,8 @@ raffle_intersect <- function(points, polys, units, distance) {
   
   intersects
 }
- 
+
+
 ## 5. PDF helper function, returns vector of probabilities ---------------------
 
 raffle_pdf <- function(x) {
@@ -115,7 +111,7 @@ raffle_choose_winner <- function(
   points, intersects, point_ID, poly_ID, diagnostic) {
   
   point_ID <- enquo(point_ID)
-  poly_ID <- enquo(poly_ID)
+  poly_ID  <- enquo(poly_ID)
   
   results <-
     intersects %>%
@@ -146,33 +142,44 @@ raffle_choose_winner <- function(
 
 ## 8. Main compiler to run the whole process -----------------------------------
 
-raffle <- function(
+str_raffle <- function(
   points, polys, point_ID, poly_ID, units,
   distance = 200, diagnostic = FALSE, cores = 1) {
   
-  lapply(c("sf","dplyr","spatstat","polyCub"), 
+  lapply(c("sf","dplyr","spatstat","polyCub", "purrr"), 
          library, character.only = TRUE)
+  
+  if (cores >= 2) library(parallel)
+  if (cores >= 2) library(pbapply)
+  
+  point_ID <- enquo(point_ID)
+  poly_ID  <- enquo(poly_ID)
+  units    <- enquo(units)
   
   points <- raffle_setup_points(points, point_ID)
   polys <- raffle_setup_polys(polys, poly_ID, units)
+  intersects <- raffle_intersect(points, polys, Housing, distance)
+
+  # Multi-threaded version
+  if (cores >= 2) {
+    
+    clusters <- splitpb(nrow(intersects), cores, nout = 100)
+    intersects_list <- lapply(clusters, function(x) intersects[x,])
+    cl <- makeForkCluster(cores)
+    
+    intersects <-
+      intersects_list %>%
+      pblapply(raffle_integrate, cl = cl) %>%
+      do.call(rbind, .)
+    
+    # Single-threaded version 
+    } else {
+      intersects <- raffle_integrate(intersects)
+      }
   
-  # Run single-core version by default, unless multiple cores are specified
-  if (cores >= 2){
-    library(parallel)
-    points_list <- split(points, cut(seq_along(points$Property_ID),
-                                     cores,
-                                     labels = FALSE))
-    points_list <- mclapply(points_list,
-                            raffle_function,
-                            polys = polys,
-                            distance = distance,
-                            diagnostic = diagnostic,
-                            mc.cores = cores)
-    points <- do.call(rbind, points_list)
-  } else {
-    points <- raffle_function(points,polys,distance = distance, diagnostic = diagnostic)
-  }
+  points <-
+    raffle_choose_winner(points, intersects, Property_ID, GEOID, diagnostic)
   
-  return(points)
+  points
 }
 
