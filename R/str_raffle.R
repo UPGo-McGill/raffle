@@ -18,9 +18,12 @@ raffle_setup_points <- function(points, point_ID) {
   
   point_ID <- enquo(point_ID)
   
-  points %>%
+  points <- 
+    points %>%
     filter(!! point_ID > 0) %>%
     arrange(!! point_ID)
+  
+  points
 }
 
 
@@ -31,7 +34,8 @@ raffle_setup_polys <- function(polys, poly_ID, units){
   poly_ID <- enquo(poly_ID)
   units <- enquo(units)
   
-  polys %>%
+  polys <- 
+    polys %>%
     filter(!! units > 0) %>%
     st_set_agr("constant") %>% # Prevent warnings from the st operations
     mutate(
@@ -39,6 +43,8 @@ raffle_setup_polys <- function(polys, poly_ID, units){
       poly_area = st_area(.) # Calculate polygon areas
     ) %>% 
     st_set_agr("constant")
+  
+  polys
 }
 
 
@@ -66,24 +72,18 @@ raffle_intersect <- function(points, polys, units, distance) {
   # Estimate int_units
   intersects <-
     intersects %>%
-    mutate(int_units = as.numeric(!! units * st_area(.) / poly_area)) %>% 
-    select(-(!! units), -poly_area) %>% 
+    mutate(int_units = as.numeric(!! units * st_area(geometry) / poly_area)) %>% 
     st_set_agr("constant")
   
   # Transform intersects relative to point coordinates
-  st_geometry(intersects) <-   
-    mapply(function(geom, x, y) {
-      geom <- geom - c(x, y)
-      geom
-    },
-    st_geometry(intersects),
-    intersects$point_x,
-    intersects$point_y,
-    SIMPLIFY = FALSE) %>%
-    st_sfc()
+  intersects <- 
+    intersects %>% 
+    mutate(geometry = pmap(list(geometry, point_x, point_y), ~{
+      ..1 - c(..2, ..3)
+      }) %>% 
+        st_sfc())
   
-  intersects %>% 
-    select(-point_x, -point_y)
+  intersects
 }
  
 
@@ -92,7 +92,7 @@ raffle_intersect <- function(points, polys, units, distance) {
 raffle_integrate <- function(intersects, units) {
   
   intersects$probability <-
-    mapply(function(geom,units){
+    mapply(function(geom, units){
       polyCub.midpoint(as(geom,"Spatial"), function(x) {
         dnorm(sqrt(x[,1]^2 + x[,2]^2), mean = 100, sd = 50, log = FALSE) *
           (1 / (2 * pi))}
