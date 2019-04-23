@@ -1,5 +1,10 @@
 ## Testing file
 
+# Libraries
+
+lapply(c("sf","dplyr","spatstat","polyCub", "purrr"), library,
+       character.only = TRUE)
+
 
 # Import data
 
@@ -21,28 +26,9 @@ NOLA_polys <-
 points <- raffle_setup_points(NOLA, Property_ID)
 polys <- raffle_setup_polys(NOLA_polys, GEOID, Housing)
 intersects <- raffle_intersect(points, polys, Housing, 200)
-
-
-raffle_integrate <- function(intersects) {
-  
-  intersects %>% 
-    mutate(probability = map2(geometry, int_units, ~{
-      polyCub.midpoint(as(.x, "Spatial"), raffle_pdf) * int_units
-      })
-    )
-  
-  
-  intersects$probability <-
-    mapply(function(geom, units){
-      polyCub.midpoint(as(geom,"Spatial"), function(x) {
-        dnorm(sqrt(x[,1]^2 + x[,2]^2), mean = 100, sd = 50, log = FALSE) *
-          (1 / (2 * pi))}
-      ) * units
-    },
-    intersects$geometry,
-    intersects$int_units)
-}
-
+intersects <- raffle_integrate(intersects)
+points <- raffle_choose_winner(
+  points, intersects, Property_ID, GEOID, diagnostic = TRUE)
 
 
 # Benchmarking component functions

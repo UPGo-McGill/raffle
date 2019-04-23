@@ -111,9 +111,11 @@ raffle_integrate <- function(intersects) {
 
 ## 7. Determine winners, returns points ----------------------------------------
 
-raffle_choose_winner <- function(points, intersects, point_ID, diagnostic) {
+raffle_choose_winner <- function(
+  points, intersects, point_ID, poly_ID, diagnostic) {
   
   point_ID <- enquo(point_ID)
+  poly_ID <- enquo(poly_ID)
   
   results <-
     intersects %>%
@@ -136,7 +138,7 @@ raffle_choose_winner <- function(points, intersects, point_ID, diagnostic) {
       )
   }
   
-  points <- left_join(points, results, by = as_name(point_ID))
+  points <- left_join(points, results, by = quo_name(point_ID))
   
   points
 }
