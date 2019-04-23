@@ -1,10 +1,11 @@
 #' Raffle to assign STR listings to administrative units for spatial analysis
 #' 
-#' This function takes STR listings and assigns them probabilistically to
-#' one of the administrative units (e.g. census tracts) in which, given their
-#' reported location, they could be located in. The function uses a combination
-#' of a reversal of Airbnb's method for obfuscating listing locations and a
-#' weighting of possible locations by population or housing-unit data.
+#' A function for probablistically assigning STR listings to administrative
+#' geographies (e.g. census tracts) based on reported latitude/longitude.
+#' The function works by combining a known probability density function (e.g.
+#' Airbnb's spatial obfuscation of listing locations) with an additional source
+#' of information about possible listing locations--either population or housing
+#' densities.
 
 
 ## 1. Load libraries -----------------------------------------------------------
@@ -95,55 +96,53 @@ raffle_pdf <- function(x) {
 
 ## 6. Integrate the PDF over intersect polygons, returns intersects ------------
 
-raffle_integrate <- function(intersects, units) {
+raffle_integrate <- function(intersects) {
   
-  units <- enquo(units)
-  
-  intersects$probability <-
-    mapply(function(geom, units){
-      polyCub.midpoint(as(geom,"Spatial"), function(x) {
-        dnorm(sqrt(x[,1]^2 + x[,2]^2), mean = 100, sd = 50, log = FALSE) *
-          (1 / (2 * pi))}
-      ) * 
-        units
-    },
-    intersects$geometry,
-    intersects$int_units)
+  intersects <- 
+    intersects %>% 
+    mutate(probability = map2_dbl(geometry, int_units, ~{
+      polyCub.midpoint(as(.x, "Spatial"), raffle_pdf) * .y
+    })
+    )
   
   intersects
 }
+
+
+## 7. Determine winners, returns points ----------------------------------------
+
+raffle_choose_winner <- function(points, intersects, point_ID, diagnostic) {
   
-
-## 6. Determine winners, returns points ----------------------------------------
-
-raffle_choose_winner <- function() {
+  point_ID <- enquo(point_ID)
   
   results <-
     intersects %>%
     st_drop_geometry() %>%
-    group_by(Property_ID)
+    group_by(!! point_ID)
   
   if (diagnostic == TRUE) {
     results <-
       results %>%
-      summarize(winner = as.character(base::sample(ID, 1, prob = probability)),
-                candidates = list(matrix(c(ID,(probability)/sum(probability)),ncol = 2))
+      summarize(
+        winner = as.character(base::sample(!! poly_ID, 1, prob = probability)),
+        candidates = list(matrix(
+          c(!! poly_ID, (probability) / sum(probability)), ncol = 2))
       )
   } else {
     results <-
       results %>%
-      summarize(winner = as.character(base::sample(ID, 1, prob = probability))
+      summarize(
+        winner = as.character(base::sample(!! poly_ID, 1, prob = probability))
       )
   }
   
-  points <-
-    results %>% 
-    left_join(points, ., by = "Property_ID")
+  points <- left_join(points, results, by = as_name(point_ID))
   
-  return(points)
+  points
 }
 
-## 4. MAIN compiler to run the whole process -----------------------------------
+
+## 8. Main compiler to run the whole process -----------------------------------
 
 raffle <- function(
   points, polys, point_ID, poly_ID, units,
