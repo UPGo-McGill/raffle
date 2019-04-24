@@ -150,6 +150,37 @@ str_raffle <- function(
   lapply(c("sf","dplyr","spatstat","polyCub", "purrr"), 
          library, character.only = TRUE)
   
+  # Check that cores is an integer > 0
+  cores <- floor(cores)
+  if (cores <= 0) {
+    stop("The argument `cores` must be a positive integer.")
+  }
+  
+  # Check that distance > 0
+  if (distance <= 0) {
+    stop("The argument `distance` must be a positive number.")
+  }
+  
+  # Convert points and polys from sp
+  if (is(points, "Spatial")) {
+    points <- st_as_sf(points)
+  }
+  if (is(polys, "Spatial")) {
+    polys <- st_as_sf(polys)
+  }
+  
+  # Check that points and polys are sf
+  if (is(points, "sf") == FALSE) {
+    stop("The object `points` must be of class sf or sp.")
+  }
+  if (is(polys, "sf") == FALSE) {
+    stop("The object `polys` must be of class sf or sp.")
+  }
+  
+  # Convert points and polys to tibble
+  points <- as_tibble(points) %>% st_as_sf()
+  polys  <- as_tibble(polys)  %>% st_as_sf()
+  
   if (cores >= 2) library(parallel)
   if (cores >= 2) library(pbapply)
   
