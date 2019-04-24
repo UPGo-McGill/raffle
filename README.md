@@ -1,6 +1,6 @@
 # str_raffle
  
-A function for probablistically assigning STR listings to administrative
+A function for probabilistically assigning STR listings to administrative
 geographies (e.g. census tracts) based on reported latitude/longitude.
 The function works by combining a known probability density function (e.g.
 Airbnb's spatial obfuscation of listing locations) with an additional source
